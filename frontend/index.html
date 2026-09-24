@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cloud Health Tracker</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{--bg:#f3f6fc;--card:#fff;--ink:#0f1b3d;--mut:#5b6a8c;--pri:#1a5cff;--line:#e4e9f3}
+*{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui,Segoe UI,Arial,sans-serif;background:var(--bg);color:var(--ink)}
+button,input,select{font:inherit}.hide{display:none!important}
+.btn{background:var(--pri);color:#fff;border:0;border-radius:8px;padding:9px 16px;cursor:pointer}.btn.alt{background:#fff;color:var(--pri);border:1px solid var(--line)}
+input,select{padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:#fff;width:100%}
+#auth{max-width:380px;margin:9vh auto;background:var(--card);padding:28px;border-radius:14px;box-shadow:0 4px 24px #0001}
+#auth h1{color:var(--pri);margin:0 0 4px;font-size:24px}#auth p{color:var(--mut);margin:0 0 16px}#auth input{margin-bottom:10px}
+#msg{color:#c62828;min-height:20px;font-size:14px;margin-bottom:8px}
+#app{display:flex;min-height:100vh}
+aside{width:220px;background:linear-gradient(#eaf1ff,#dbe8ff);padding:18px 12px;flex-shrink:0}
+aside h2{color:var(--pri);font-size:18px;margin:0 8px 2px}aside small{display:block;color:var(--mut);margin:0 8px 18px;font-size:11px}
+aside a{display:block;padding:10px 12px;border-radius:8px;cursor:pointer;margin-bottom:4px}aside a.on{background:#cfe0ff;color:var(--pri);font-weight:600}
+main{flex:1;padding:20px 26px;min-width:0}
+.top{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap}.top h1{margin:0;font-size:28px}.top p{margin:2px 0 0;color:var(--mut)}
+.top div.r{display:flex;gap:8px;align-items:center}.top select{width:auto}
+.card{background:var(--card);border-radius:12px;padding:16px;margin-bottom:16px;box-shadow:0 1px 4px #0001}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px}
+.tile{border-radius:10px;padding:12px}.tile b{display:block;font-size:24px;margin:4px 0}.tile span{font-size:13px;color:var(--mut)}
+table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:9px 8px;text-align:left;border-bottom:1px solid var(--line)}th{color:var(--mut);font-weight:600}
+.charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px}.charts .card{margin:0}.charts h3{margin:0 0 8px;font-size:16px}
+form{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}form label{font-size:13px;color:var(--mut)}
+.ico{cursor:pointer;background:none;border:0;font-size:16px}.pg{display:flex;gap:6px;justify-content:space-between;align-items:center;margin-top:12px;color:var(--mut)}
+@media(max-width:760px){#app{flex-direction:column}aside{width:auto}}
+</style></head><body>
+
+<!-- ======= EDIT THESE VALUES AFTER CREATING YOUR AWS RESOURCES ======= -->
+<script>const CFG={region:"ap-south-1",clientId:"YOUR_COGNITO_APP_CLIENT_ID",api:"https://YOUR_API_ID.execute-api.ap-south-1.amazonaws.com"};</script>
+
+<div id="auth"><h1>❤ Cloud Health Tracker</h1><p>Track Your Health. Anytime. Anywhere.</p>
+<input id="em" type="email" placeholder="Email"><input id="pw" type="password" placeholder="Password (min 8, upper, lower, digit)">
+<input id="cd" class="hide" placeholder="Verification code from email">
+<div id="msg"></div>
+<button class="btn" id="bIn">Log in</button> <button class="btn alt" id="bUp">Sign up</button> <button class="btn alt hide" id="bCf">Confirm</button></div>
+
+<div id="app" class="hide">
+<aside><h2>Cloud Health Tracker</h2><small>Track Your Health. Anytime. Anywhere.</small>
+<a data-v="dash" class="on">🏠 Dashboard</a><a data-v="add">➕ Add Record</a><a data-v="charts">📊 Health Charts</a><a data-v="hist">📋 Health History</a><a id="out">↪ Logout</a></aside>
+<main>
+<div class="top"><div><h1 id="ttl"></h1><p id="sub"></p></div>
+<div class="r"><select id="prof"></select><select id="days"><option value="7">Last 7 Days</option><option value="14" selected>Last 14 Days</option><option value="30">Last 30 Days</option></select></div></div>
+
+<section id="v-dash"><div class="card" id="pcard"></div><div class="card"><h3 style="margin-top:0">Today's Health Summary</h3><div class="tiles" id="tiles"></div></div>
+<div class="card"><h3 style="margin-top:0">Recent Records</h3><table id="recent"></table></div></section>
+
+<section id="v-add" class="hide"><div class="card"><form id="f">
+<div><label>Date</label><input name="recordDate" type="date" required></div><div><label>Weight (kg)</label><input name="weightKg" type="number" step="0.1" required></div>
+<div><label>Steps</label><input name="steps" type="number" required></div><div><label>Water (L)</label><input name="waterL" type="number" step="0.1" required></div>
+<div><label>Sleep (hrs)</label><input name="sleepHrs" type="number" step="0.1" required></div><div><label>Calories (kcal)</label><input name="calories" type="number" required></div>
+<div><label>Heart rate (BPM)</label><input name="heartRate" type="number" required></div><div><label>Notes</label><input name="notes" maxlength="100"></div>
+<div style="align-self:end"><button class="btn">Save Record</button></div></form><div id="fm" style="margin-top:10px"></div></div></section>
+
+<section id="v-charts" class="hide"><div class="charts" id="cg"></div></section>
+
+<section id="v-hist" class="hide"><div class="card"><div style="text-align:right;margin-bottom:8px"><button class="btn alt" id="csv">⬇ Export CSV</button></div>
+<div style="overflow-x:auto"><table id="ht"></table></div><div class="pg"><span id="pi"></span><span><button class="btn alt" id="pp">‹</button> <button class="btn alt" id="pn">›</button></span></div></div></section>
+</main></div>
+
+<script>
+const $=s=>document.querySelector(s),esc=t=>String(t??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const M=[["weightKg","Weight (kg)","line","#1a5cff","#e8f0ff","kg"],["steps","Steps","bar","#2ecc71","#e9f9ef","steps"],["waterL","Water Intake (L)","bar","#42a5f5","#e8f4ff","L"],
+["sleepHrs","Sleep Hours","line","#7c3aed","#f0e9ff","hrs"],["calories","Calories","bar","#ff8a65","#fff0e9","kcal"],["heartRate","Heart Rate (BPM)","line","#e53935","#ffeaea","BPM"]];
+let profiles=[],cur=null,recs=[],page=0,charts={};
+const say=(t,ok)=>{$("#msg").style.color=ok?"#2e7d32":"#c62828";$("#msg").textContent=t};
+async function cog(target,body){const r=await fetch(`https://cognito-idp.${CFG.region}.amazonaws.com/`,{method:"POST",headers:{"Content-Type":"application/x-amz-json-1.1","X-Amz-Target":"AWSCognitoIdentityProviderService."+target},body:JSON.stringify({ClientId:CFG.clientId,...body})});const j=await r.json();if(!r.ok)throw new Error(j.message||j.__type);return j}
+async function api(path,o={}){const r=await fetch(CFG.api+path,{...o,headers:{"Content-Type":"application/json",Authorization:sessionStorage.idToken}});
+ if(r.status===401){logout();throw new Error("Session expired")}const j=await r.json();if(!r.ok)throw new Error(j.error||r.statusText);return j}
+$("#bIn").onclick=async()=>{try{say("");const r=await cog("InitiateAuth",{AuthFlow:"USER_PASSWORD_AUTH",AuthParameters:{USERNAME:$("#em").value.trim(),PASSWORD:$("#pw").value}});
+ if(!r.AuthenticationResult)throw new Error("Unsupported challenge: "+r.ChallengeName);sessionStorage.idToken=r.AuthenticationResult.IdToken;start()}catch(e){say(e.message)}};
+$("#bUp").onclick=async()=>{try{await cog("SignUp",{Username:$("#em").value.trim(),Password:$("#pw").value,UserAttributes:[{Name:"email",Value:$("#em").value.trim()}]});
+ $("#cd").classList.remove("hide");$("#bCf").classList.remove("hide");say("Check your email for the code, then click Confirm.",1)}catch(e){say(e.message)}};
+$("#bCf").onclick=async()=>{try{await cog("ConfirmSignUp",{Username:$("#em").value.trim(),ConfirmationCode:$("#cd").value.trim()});say("Confirmed! You can log in now.",1)}catch(e){say(e.message)}};
+function logout(){sessionStorage.clear();$("#app").classList.add("hide");$("#auth").classList.remove("hide")}$("#out").onclick=logout;
+
+async function start(){$("#auth").classList.add("hide");$("#app").classList.remove("hide");
+ profiles=await api("/profiles");$("#prof").innerHTML=profiles.map(p=>`<option value="${esc(p.profileId)}">${esc(p.name)}</option>`).join("");
+ cur=profiles[0];await load();show("dash")}
+async function load(){recs=(await api(`/records?profile=${cur.profileId}&days=30`)).sort((a,b)=>b.recordDate.localeCompare(a.recordDate));page=0;render()}
+$("#prof").onchange=async e=>{cur=profiles.find(p=>p.profileId===e.target.value);await load();show("dash")};$("#days").onchange=charts_;
+
+document.querySelectorAll("aside a[data-v]").forEach(a=>a.onclick=()=>show(a.dataset.v));
+const T={dash:["","Here's your health summary for today."],add:["Add Record","Log your daily health data."],charts:["Health Charts","Visualise your health progress over time."],hist:["Health History","View and manage your past health records."]};
+function show(v){document.querySelectorAll("main section").forEach(s=>s.classList.toggle("hide",s.id!=="v-"+v));
+ document.querySelectorAll("aside a[data-v]").forEach(a=>a.classList.toggle("on",a.dataset.v===v));
+ $("#ttl").textContent=v==="dash"?`Hello, ${cur.name}! 👋`:T[v][0];$("#sub").textContent=T[v][1];$("#days").classList.toggle("hide",v!=="charts");if(v==="charts")charts_()}
+const n=x=>Number(x).toLocaleString();
+function render(){const l=recs[0];
+ $("#pcard").innerHTML=`<b style="font-size:20px">${esc(cur.name)}</b><br><span style="color:var(--mut)">Age: ${esc(cur.age)} | Height: ${esc(cur.heightCm)} cm | Weight: ${l?l.weightKg:cur.weightKg} kg<br>Goal: ${esc(cur.goal)}</span>`;
+ $("#tiles").innerHTML=l?M.map(m=>`<div class="tile" style="background:${m[4]}"><span>${m[1].replace(/ \(.*/,"")}</span><b style="color:${m[3]}">${n(l[m[0]])}</b><span>${m[5]}</span></div>`).join(""):"<p>No records yet.</p>";
+ const hd="<tr><th>Date</th><th>Weight</th><th>Steps</th><th>Water</th><th>Sleep</th><th>Calories</th><th>Heart Rate</th>";
+ const row=r=>`<td>${r.recordDate}</td><td>${r.weightKg}</td><td>${n(r.steps)}</td><td>${r.waterL}</td><td>${r.sleepHrs}</td><td>${n(r.calories)}</td><td>${r.heartRate}</td>`;
+ $("#recent").innerHTML=hd+"</tr>"+recs.slice(0,5).map(r=>`<tr>${row(r)}</tr>`).join("");
+ const pg=recs.slice(page*10,page*10+10);
+ $("#ht").innerHTML=hd+"<th>Notes</th><th>Actions</th></tr>"+pg.map(r=>`<tr>${row(r)}<td>${esc(r.notes)}</td><td><button class="ico" data-e="${r.recordDate}">✏️</button><button class="ico" data-d="${r.recordDate}">🗑️</button></td></tr>`).join("");
+ $("#pi").textContent=`Showing ${recs.length?page*10+1:0} – ${page*10+pg.length} of ${recs.length} records`;
+ document.querySelectorAll("[data-d]").forEach(b=>b.onclick=async()=>{if(confirm("Delete "+b.dataset.d+"?")){await api(`/records/${b.dataset.d}?profile=${cur.profileId}`,{method:"DELETE"});await load()}});
+ document.querySelectorAll("[data-e]").forEach(b=>b.onclick=()=>{const r=recs.find(x=>x.recordDate===b.dataset.e);for(const k in r)if($("#f")[k])$("#f")[k].value=r[k];show("add")});
+ if(!$("#v-charts").classList.contains("hide"))charts_()}
+$("#pp").onclick=()=>{if(page>0){page--;render()}};$("#pn").onclick=()=>{if((page+1)*10<recs.length){page++;render()}};
+
+function charts_(){const d=+$("#days").value,data=recs.slice(0,d).reverse();
+ if(!$("#cg").children.length)$("#cg").innerHTML=M.map(m=>`<div class="card"><h3>${m[1]}</h3><canvas id="c_${m[0]}" height="150"></canvas></div>`).join("");
+ M.forEach(m=>{charts[m[0]]?.destroy();charts[m[0]]=new Chart($("#c_"+m[0]),{type:m[2],data:{labels:data.map(r=>r.recordDate.slice(5)),datasets:[{data:data.map(r=>r[m[0]]),borderColor:m[3],backgroundColor:m[2]==="bar"?m[3]+"cc":m[3]+"33",fill:m[2]==="line",tension:.3}]},options:{plugins:{legend:{display:false}}}})})}
+
+$("#f").onsubmit=async e=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.target));b.profileId=cur.profileId;
+ try{await api("/records",{method:"POST",body:JSON.stringify(b)});$("#fm").style.color="#2e7d32";$("#fm").textContent="Saved ✔";await load()}catch(x){$("#fm").style.color="#c62828";$("#fm").textContent=x.message}};
+$("#f").recordDate.value=new Date().toISOString().slice(0,10);
+$("#csv").onclick=()=>{const k=["recordDate",...M.map(m=>m[0]),"notes"];const c=[k.join(",")].concat(recs.map(r=>k.map(x=>JSON.stringify(r[x]??"")).join(","))).join("\n");
+ const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([c],{type:"text/csv"}));a.download=`${cur.profileId}_health.csv`;a.click()};
+if(sessionStorage.idToken)start().catch(logout);
+</script></body></html>
